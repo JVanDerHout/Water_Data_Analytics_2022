@@ -1,6 +1,6 @@
 ---
 title: "Assignment 1: Introduction"
-author: "Student Name"
+author: "Jackie Van Der Hout"
 output: pdf_document
 geometry: margin=2.54cm
 editor_options: 
@@ -26,20 +26,29 @@ Target due date: 2022-01-18
 
 1. Post the link to your forked GitHub repository below. Your repo should include one or more commits and an edited README file.  
 
->  Link:
+>  Link: https://github.com/JVanDerHout/Water_Data_Analytics_2022.git
 
 ## Data Visualization Exercises
 
 2. Set up your work session. Check your working directory, load packages `tidyverse`,  `dataRetrieval`, and `zoo`. Set your ggplot theme as theme_classic (you may need to look up how to set your theme).
 
 ```{r, message = FALSE}
-
+getwd()
+library("tidyverse")
+library("dataRetrieval")
+library("zoo")
+theme_classic()
 ```
 
 3. Upload discharge data for the Eno River at site 02096500 for the same dates as we studied in class (2012-01-01 through 2021-12-31). Obtain data for discharge. Rename the columns with informative titles, as we did in class. 
 
 ```{r}
-
+EnoQ <- readNWISdv(siteNumbers = "02096500",
+                     parameterCd = "00060", # discharge (ft3/s)
+                     startDate = "2012-01-01",
+                     endDate = "2021-12-31")
+names(EnoQ)[4:5] <- c("Discharge_cfs", "Approval.Code")
+View(EnoQ)
 ```
 
 
@@ -54,19 +63,41 @@ Target due date: 2022-01-18
 * Add a legend. (hint: Google "add legend two geom layers ggplot")
 
 ```{r}  
+#adding m^3/s column
+EnoQm3 <- mutate(EnoQ,
+                 m3s = EnoQ$Discharge_cfs * 0.02832)
+EnoQm3_30day <- mutate(EnoQm3,
+                  thirtydayroll = rollmean(EnoQm3$m3s, k = 30, fill = NA)
+)
 
+View(EnoQm3_30day)
+
+EnoPlot2 <- 
+  ggplot(data = EnoQm3_30day, aes(EnoQm3_30day$m3s, EnoQm3_30day$thirtydayroll)) +
+         geom_line(mapping = aes(x = Date, y = EnoQm3_30day$m3s, color = "salmon")) +
+         geom_line(mapping = aes(x = Date, y = EnoQm3_30day$thirtydayroll, color = "navyblue"))+
+         xlab("Year")+
+         ylab("Discharge (Cubic Meters per Second)")+
+         scale_y_log10()+
+         scale_color_identity(name = "Legend",
+                          breaks = c("salmon", "navyblue"),
+                          labels = c("Daily Discharge", "30 Day Rolling Average"),
+                          guide = "legend")+
+         theme_classic()
+
+EnoPlot2
 
 ```
 
 5. In what ways was the second plot a more effective visualization than the first? 
 
-> ANSWER: 
+> ANSWER: The log scale allows a better vizualization of the trends over time and allows for the seasonality of the discharge to be better seen. It also provides an overall trend with the 30 day rolling average that allows for extreme events to be much better identified. 
 
 6. What portions of the coding were challenging for you?
 
-> ANSWER: 
+> ANSWER: I had to look up the 30 day rolling average rollmean function, and had a hard time interpreting the answers so eventually had to look at the solution to realize I was missing the "fill = NA" in order to get that line to work. I was also challenged by how to organize the ggplot but eventually figured it out with some googling. I had a hard time making the plot easy to look at and tried playing with the colors for a while but will look into it more later. I also wanted to figure out how to change the weight of the lines to make the rolling average line thicker but couldn't figure out a happy medium size. 
 
 7. Interpret the graph you made. What are the things you notice about within- and across-year variability, as well as the differences between daily values and 30-day rolling mean?
 
-> ANSWER: 
+> ANSWER: This ten year period saw fluctuations in overall 30 day rolling averages. It appears that there were some drought periods from 2013-2015, with an increase in the frequency and amount of extreme precipitation events in 2018. 2021 seems to have ended with a moderate drought as well, though the winter / new year seems to be a regular time with drops in precipitation across this period. 
 
