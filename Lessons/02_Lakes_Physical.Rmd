@@ -33,9 +33,12 @@ library(rLakeAnalyzer)
 
 # Load data
 NTLdata <- read.csv("./Data/Raw/NTL-LTER_Lake_ChemistryPhysics_Raw.csv")
+#here package also works with relative file paths 
+#North Temperate Lakes long term ecological monitoring data 
 
 # set ggplot theme
 theme_set(theme_classic())
+#have a theme in ggplot so things look consistent across a project 
 ```
 
 ## Data Wrangling and Exploration
@@ -51,27 +54,42 @@ Common steps/checks for data wrangling:
 ```{r}
 # Is the date column perceived as a date by R?
 class(NTLdata$sampledate)
+#no it is perceived as a character 
 NTLdata$sampledate <- as.Date(NTLdata$sampledate, format = "%m/%d/%y")
-class(NTLdata$sampledate)
+#as.Date changes from character to date, and we provide the existing date format (lookup date codes for upper/lower case)
+#help(as.Date)
+class(NTLdata$sampledate) #now date is recognized
+
+
 # What does this column look like now?
+View(NTLdata)
+#1984-05-27 date structure
 
 # Remove rows that contain NAs in temperature column
-dim(NTLdata)
-NTLdata <- NTLdata %>%
-  drop_na(temperature_C)
+dim(NTLdata) #dim is the dimensions 
+NTLdata <- NTLdata %>% #read pipe as "then"
+  drop_na(temperature_C) #got rid of all NA values in temp column
 dim(NTLdata)  
+#here we are using dplyr, so we don't need to use $ because dplyr knows within the pipe what dataset we are working with
+#alternative code for the above
+# NTLData <- drop_na(NTLdata, temperature_C)
+#however pipes are easy to add new things on top of 
 
 # How many observations are there for each lake?
-summary(NTLdata$lakename)
-summary(as.factor(NTLdata$lakename))
+summary(NTLdata$lakename) #this treats it as a character
+summary(as.factor(NTLdata$lakename)) #here instead it is a factor of the column
+#this also tells us how many temperature measurements we have
+#Peter and Paul lake have the longest temperature data collection
 
 # Let's choose the two lakes with the most data
 NTLdata_PeterPaul <- NTLdata %>%
-  filter(lakename %in% c("Paul Lake", "Peter Lake"))
+  filter(lakename %in% c("Paul Lake", "Peter Lake")) #c is concatenate
+# %in% reads as "includes"
 
 # What is another way to use the filter command to get to the same result?
 NTLdata_PeterPaul <- NTLdata %>%
-  filter(lakename == "Paul Lake" | lakename == "Peter Lake")
+  filter(lakename == "Paul Lake" | lakename == "Peter Lake") 
+# | means "or"
 
 # Make two data frames, one for each lake
 Pauldata <- NTLdata %>%
@@ -84,12 +102,15 @@ min(Pauldata$sampledate)
 max(Pauldata$sampledate)
 min(Peterdata$sampledate)
 max(Peterdata$sampledate)
+#1984-2016
 
-# Which depths are sampled in each lake?
-unique(Pauldata$depth)
+# Which depths are sampled in each lake? (in meters)
+unique(Pauldata$depth) 
 unique(Peterdata$depth)
 # Why didn't we use the "summary" function here?
+#summary gives min and max but doesn't give discrete sample locations 
 
+#20 meters is either a typo or a one time sample
 # QA the one data point at 20 m depth. 
 Pauldata <- Pauldata %>%
   filter(depth < 20)
@@ -103,19 +124,34 @@ Let's make a plot of temperatures by depth. There are a lot of points, so adding
 Let's also try using the traditional limnological graph type, with depth on the y axis in reverse, to simulate a cross section of a lake. When and where do we usually observe high and low temperatures?
 ```{r}
 ggplot(Pauldata, aes(x = depth, y = temperature_C)) + 
-  geom_point(alpha = 0.5) +
+  geom_point(alpha = 0.5) + #alpha is transparency 
   labs(y = expression("Temperature "(degree*C)), x = "Depth (m)")
 
 ggplot(Pauldata, aes(x = temperature_C, y = depth, color = daynum)) +
   geom_point(alpha = 0.5) +
   scale_y_reverse() +
   scale_color_viridis_c() +
-  labs(x = expression("Temperature "(degree*C)), y = "Depth (m)", color = "DOY")
+  labs(x = expression("Temperature "(degree*C)), y = "Depth (m)", color = "DOY")+ #DOY is day of year
+  theme_classic()
+#the cold yellow points are very late in the year 
+#in the data we can see this is the only year that they sampled in november
+#in that november sample, the lake is thermally mixed, you might expect other variables to mixed as well 
+#the summer (green points) has a warm top(epilimion) and cold bottom(hypolimnion), is very stratified
+
+
+#limnology has independent on y and dependent on x
+#limnologists like to also flip it to look at it as a water column as in the second plot
 
 ```
 
 How do temperatures at the surface compare to temperatures at the mid-depths and at the bottom?
-<add notes here>
+#Lake Types: (mictic means mixing)
+#dimictic lakes mix twice in the year, spring and fall will have mixed water columns
+  #winter will have 0 degrees at top and 4 degrees at the bottom
+  #summer will have colder at the bottom and warmer at the top 
+#monomictic lakes mix one time. The thermal mass of the water column have different densities and resist mixing. It is more likely to have stronger stratification when the air is very warm and the bottom of the water column remains cool, during the summer is when they have the strongest stratification. 
+#polymictic mixes several times per year - mixing happens with strong wind events or weather patterns as opposed to seasonal. Shallower lakes are more likely to be polymictic. They tend to have narrower thermal profiles. 
+#amictic - these lakes are always stratified and do not mix. They tend to be very deep and sheltered from weather patterns. 
 
 
 ### Graphing seasonal water profiles
@@ -133,16 +169,23 @@ ggplot(subset(Pauldata, year4 == 1993),
   geom_point(alpha = 0.5) +
   scale_y_reverse() +
   scale_color_viridis_c() +
-  labs(x = expression("Temperature "(degree*C)), y = "Depth (m)", color = "DOY") 
+  labs(x = expression("Temperature "(degree*C)), y = "Depth (m)", color = "DOY")+
+  theme_classic()
 
 # Now, make a plot as above but with dissolved oxygen saturation instead of temperature.
-
+ggplot(subset(Pauldata, year4 == 1993), 
+       aes(x = dissolvedOxygen, y = depth, color = daynum)) +
+  geom_point(alpha = 0.5) +
+  scale_y_reverse() +
+  scale_color_viridis_c() +
+  labs(x = "DO mg/L", y = "Depth (m)", color = "DOY")
 
 ```
 
 Why does mixing occur in the spring and fall? What are the mechanisms that make this possible?
-<add notes here>
-
+During stratified conditions, 
+DO concentrations are higher in the epilimnion (top) which is where wind induced mixing occurs increasing DO. Plants and algae might also contribute to more DO in the upper water column. 
+There is a slight bulge in DO right before the thermocline, which is where the algae stay because this is the depth where nutrients concentrate. Respiration in the hypolimnion, dead and decaying algae sink down and phytoplankton hang out right where there is enoguh light and a peak in nutrients "deep chlorophyl maximum". There are also higher concentrations of CO2 and methane (products of anaerobic respiration) in the hypolimnion. 
 
 
 ### Calculating thermoclines
@@ -150,14 +193,19 @@ Why does mixing occur in the spring and fall? What are the mechanisms that make 
 [rLakeAnalyzer documentation](https://cran.r-project.org/web/packages/rLakeAnalyzer/rLakeAnalyzer.pdf)
 
 ```{r}
-Pauldata_thermo <- Pauldata %>%
-  group_by(year4, daynum, sampledate) %>%
+Pauldata_thermo <- Pauldata %>% #creating a new dataset 
+  group_by(year4, daynum, sampledate) %>% #grouping dataframe by dates (keeping year and daynum)
   # calculate thermoclines based on temperature profiles. 
   # seasonal = FALSE calculates the thermocline as the maximum density gradient
   # seasonal = TRUE calculates the thermocline as the deepest density gradient
+  #think about what would make more sense in specific contexts 
   summarise(thermocline = thermo.depth(wtr = temperature_C, depths = depth, seasonal = FALSE)) %>%
   # remove all thermoclines within 1 m of the surface. these can represent transient stratification.
-  filter(thermocline > 1)
+  #naming new column thermocline
+  #thermo.depth function takes temperature profile and associated depths 
+  filter(thermocline > 1) #taking out transient stratificiation and removing blanks 
+
+View(Pauldata_thermo)
 
 ggplot(Pauldata_thermo, aes(x = daynum, y = thermocline)) +
   geom_point() 
@@ -165,7 +213,7 @@ ggplot(Pauldata_thermo, aes(x = daynum, y = thermocline)) +
 ```
 
 How does thermocline depth change over the course of the year? When do we observe the most variability in thermocline depth?
-<add notes here>
+An overall increase in thermocline depth over the course of the year is emerging (thermocline deepens as the year goes on). There is more variability earlier in the year and it tends to be more consistent later in the year. (Day zero in limnology is when stratification starts to take place). 
 
 
 ### Climate change
@@ -176,7 +224,7 @@ Increases in global temperature are predicted to cause several changes to lake t
 * Increases in surface minimum temperature
 * Increases in extent of stratification
 * Increases in length of stratification
-* Decreases in ice cover
+* Decreases in ice cover - potential for lakes to be switching from dimictic to monomictic 
 
 Several studies have addressed this topic, using long-term and spatially diverse datasets: 
 
@@ -188,15 +236,20 @@ https://agupubs.onlinelibrary.wiley.com/doi/pdf/10.1002/2015GL064097
 
 https://link.springer.com/article/10.1007/s10584-019-02465-y
 
-Let's explore how these changes might manifest in Paul Lake. 
+Let's explore how these changes might manifest in Paul Lake. Here we have over 30 years of data. Can we see changes in climate in this dataset? 
 ```{r}
 ggplot(Pauldata_thermo, aes(x = daynum, y = thermocline, color = year4)) +
   geom_point() +
   scale_color_viridis_c()
+
 # exercise: put the legend on top and relabel the aesthetics
 
+#If we were seeing increases in extent and length of stratification, we might expect thermocline depth to narrow, and to be deeper earlier in the season
+#First day of stratification might happen earlier
+
+#plotting surface temperatures
 ggplot(subset(Pauldata, depth == 1),
-       aes(x = daynum, y = temperature_C, color = as.factor(year4))) +
+       aes(x = daynum, y = temperature_C, color = as.factor(year4))) + # year as a factor here 
   geom_point(alpha = 0.5) +
   geom_line() +
   scale_color_viridis_d()
