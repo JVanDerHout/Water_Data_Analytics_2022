@@ -15,6 +15,10 @@ editor_options:
 
 ## Opening Discussion
 What are the physical properties of streams and rivers? What variables might be of interest?
+-morphology (sinuosity, cross sectional area)
+-sediment type (channel roughness)
+-slope
+-discharge (what volume of water is moving and how quickly)
 
 ## Session Set Up
 
@@ -35,15 +39,17 @@ One of the most important physical characteristics of a stream or river is **dis
 
 ```{r}
 EnoDischarge.ratingcurve <- readNWISdv(siteNumbers = "02096500",
-                     parameterCd = c("00060", "00065"),
+                     parameterCd = c("00060", "00065"), #00060 discharge in cfs, 00065 is gage height
                      startDate = "2012-01-01",
                      endDate = "2021-01-01")
 
 names(EnoDischarge.ratingcurve)[4:7] <- c("Discharge", "D.Approval.Code",
-                                          "Gage.Height", "GH.Approval.Code")
+                                          "Gage.Height", "GH.Approval.Code") #renaming columns
 
 ggplot(EnoDischarge.ratingcurve, aes(x = Discharge, y = Gage.Height)) +
-  geom_point(alpha = 0.5) 
+  geom_point(alpha = 0.5) #as discharge increases, gage height increases consistently
+#you can use this to estimate discharge from gage height which is what USGS is doing 
+#rating curves are also used in restoration design 
 
 ```
 
@@ -52,12 +58,14 @@ We will be using the dataRetrieval package, which allows us to access USGS hydro
 
 dataRetrieval Vignette:
 https://cran.r-project.org/web/packages/dataRetrieval/vignettes/dataRetrieval.html
+This package is super helpful for figuring out what data can be accessed for a given site. 
+You need to know exactly what to ask for. 
 
 The function `whatNWISdata` allows us to access metadata about a site, including what variables have been monitored at that site, start and end dates, and the number of samples for a given variable.
 
 We will be analyzing data from the following rivers/streams today: 
 
-* Eno River in North Carolina
+* Haw River in North Carolina
 * Verde River in Arizona (the largest perennial stream in AZ)
 * Bitterroot River in Montana
 * Sauk River in Minnesota (Dr. Salk's hometown)
@@ -69,6 +77,9 @@ VerdeSummary <- whatNWISdata(siteNumbers = "09504000")
 BitterrootSummary <- whatNWISdata(siteNumbers = "12344000")
 SaukSummary <- whatNWISdata(siteNumbers = "05270500")
 NehalemSummary <- whatNWISdata(siteNumbers = "14299800")
+
+#whatNWISdata can tell you what data you can access for a given site 
+#parameter codes differ for each site 
 ```
 
 What data are available from the sites? Pay particular attention to the parameter codes and statistic codes.
@@ -92,7 +103,7 @@ The function `readNWISdv` allows us to access daily hydrologic data, which inclu
 We will access the last 10 years of data for our purposes today. Alternatively,  you could code `startDate = ""` to indicate you want to access all available data for the entire period of record. Then, you could filter out the years you don't want to analyze.
 
 ```{r}
-# Import data
+# Import data - last 10 years of data from each river to look at different discharge patterns
 EnoDischarge <- readNWISdv(siteNumbers = "02096500",
                      parameterCd = "00060", # discharge (ft3/s)
                      startDate = "2012-01-01",
@@ -142,18 +153,19 @@ CombinedDischarge <- full_join(EnoDischarge, VerdeDischarge, by = "Date") %>%
   full_join(., BitterrootDischarge, by = "Date") %>%
   full_join(., SaukDischarge, by = "Date") %>%
   full_join(., NehalemDischarge, by = "Date")
+View(CombinedDischarge)
 ```
 
 ### Data Visualization
 ```{r}
-# Build a ggplot
+# Build a ggplot - building one by one and giving them names
 EnoPlot <- 
   ggplot(CombinedDischarge, aes(x = Date, y = Eno.Discharge)) +
   geom_line() +
   labs(x = "", y = expression("Discharge (ft"^3*"/s)"), title = "Eno River") + 
   theme(plot.title = element_text(margin = margin(b = -10), size = 12), 
         axis.text.x = element_blank(), axis.title.x = element_blank())
-EnoPlot
+EnoPlot #date column is removed
 
 VerdePlot <- 
   ggplot(CombinedDischarge, aes(x = Date, y = Verde.Discharge)) +
@@ -186,12 +198,20 @@ NehalemPlot <-
   theme(plot.title = element_text(margin = margin(b = -10), size = 12))
 NehalemPlot
 
+#cowplot combined plot using plot_grid
 CombinedPlot <- 
   plot_grid(EnoPlot, VerdePlot, BitterrootPlot, SaukPlot, NehalemPlot, 
             ncol = 1)
 CombinedPlot
-
+#plot grid can specify that some plots can be taller than others
+#it does not automatically line up axes, so this needs to be specified
+#have only one discharge label
+#think about if you want to keep individual scales or have them all on one scale
 # add relative heights and align axes
+CombinedPlot <- 
+  plot_grid(EnoPlot, VerdePlot, BitterrootPlot, SaukPlot, NehalemPlot, 
+            ncol = 1, rel_heights = c(1,1,1,1.2), align = "hv") #fixes some alignment issues
+CombinedPlot
 ```
 
 How does the magnitude of discharge compare for these rivers?
@@ -200,7 +220,7 @@ How does the magnitude of discharge compare for these rivers?
 
 Which of these rivers have a seasonal cycle of discharge? How might you explain the presence and timing of seasonal cycles based on climatic conditions?
 
->
+> Verde River is an ephemeral river and is very responsive to precipitation events. 
 
 Hypothetical question: If you wanted to create a ggplot using facets instead of `plot_grid`, how would you go about wrangling your dataset differently? 
 
