@@ -232,18 +232,25 @@ Let's take the Bitterroot River, which displays a clear seasonal cycle. Let's de
 BitterrootDischarge.Historical <- readNWISdv(siteNumbers = "12344000",
                      parameterCd = "00060", # discharge (ft3/s)
                      startDate = "")
+#blank start and end date grabs whole period of record 
 
+#renaming columns
 names(BitterrootDischarge.Historical)[4:5] <- c("Discharge", "Approval.Code")
 
+#specifying DOY in the dataset (adding new column)
 BitterrootDischarge.Historical <- mutate(BitterrootDischarge.Historical, 
-                                         DOY = yday(Date))
+                                         DOY = yday(Date)) #yday is from lubridate
 
+#make a summary across the years of data to see what a typical year looks like
+#median, 95% and 5% to capture high and low (using quantile function)
+#need to specify that you are removing NAs
 BitterrootDischarge.Pattern <- BitterrootDischarge.Historical %>%
   group_by(DOY) %>%
-  summarise(Median.Discharge = median(Discharge), 
+  summarise(Median.Discharge = median(Discharge, na.rm = TRUE), 
             p95.Discharge = quantile(Discharge, 0.95, na.rm = TRUE),
             p5.Discharge = quantile(Discharge, 0.05, na.rm = TRUE))
 
+#plot multiple lines with different y aes 
 ggplot(BitterrootDischarge.Pattern, aes(x = DOY)) +
   geom_line(aes(y = Median.Discharge)) +
   geom_line(aes(y = p95.Discharge), color = "gray") +

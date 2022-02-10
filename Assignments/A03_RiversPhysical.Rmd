@@ -1,6 +1,6 @@
 ---
 title: "Assignment 3: Physical Properties of Rivers"
-author: "Student Name"
+author: "Jackie Van Der Hout"
 output: pdf_document
 geometry: margin=2.54cm
 editor_options: 
@@ -29,7 +29,28 @@ Target due date: 2022-02-08
 3. Build a ggplot of discharge over the entire period of record. 
 
 ```{r}
+#1
+getwd()
+library(tidyverse)
+library(dataRetrieval)
+library(lubridate)
+library(lfstat)
+theme_set(theme_light())
 
+#2
+MysterySiteDischarge <- readNWISdv(siteNumbers = "03431700",
+                     parameterCd = c("00060", "00065"), #00060 discharge in cfs, 00065 is gage height
+                     startDate = "1964-10-01",
+                     endDate = "2021-09-30")
+
+names(MysterySiteDischarge)[4:5] <- c("Discharge", "Approval.Code") #renaming columns
+
+class(MysterySiteDischarge$Date) #checking that class is a date
+
+#3
+ggplot(MysterySiteDischarge, aes(x = Date, y = Discharge, color = Discharge)) +
+  geom_line()+
+  labs(x = "Date", y = "Discharge (cfs)")
 
 ```
 
@@ -39,29 +60,93 @@ Target due date: 2022-02-08
 5. Create a new data frame called "MysterySiteDischarge.Pattern" that has columns for Day.of.Year, median discharge for a given day of year, 75th percentile discharge for a given day of year, and 25th percentile discharge for a given day of year. Hint: the summarise function includes `quantile`, wherein you must specify `probs` as a value between 0 and 1.
 6. Create a plot of median, 75th quantile, and 25th quantile discharges against day of year. Median should be black, other lines should be gray. 
 ```{r}
+#4
+MysterySiteDischarge.time <- mutate(MysterySiteDischarge,
+  DOY = yday(Date),
+  WaterYear = water_year(Date, origin = "usgs")) #had to look up how to complete water_year function
 
+#5
+MysterySiteDischarge.Pattern <- MysterySiteDischarge.time %>% 
+  group_by(DOY) %>%
+  summarise(Median.Discharge = median(Discharge, na.rm = TRUE), 
+            p75.Discharge = quantile(Discharge, 0.75, na.rm = TRUE),
+            p25.Discharge = quantile(Discharge, 0.25, na.rm = TRUE))
 
+#6
+ggplot(MysterySiteDischarge.Pattern, aes(x = DOY))+
+  geom_line(aes(y = p75.Discharge), color = "gray")+
+  geom_line(aes(y = p25.Discharge), color = "gray")+
+  geom_line(aes(y = Median.Discharge), color = "black")+
+  labs(x = "Day of Year", y = expression("Discharge (ft"^3*"/s)"))
+  
 ```
 
 7. What seasonal patterns do you see? What does this tell you about precipitation patterns and climate in the watershed?
 
-> 
+> This watershed has very seasonal discharge patterns, with high flows starting in the late fall / early winter and continuing through the early spring. The late spring and early summer appear to be dry with baseflows contributing to the majority of flows during that period of the year. High discharge events are pretty even spread throughout the wet season, indicating that they may be precipitation driven instead of snowmelt. If the precipitation were snowmelt, I would instead expect to see a steady peak in the spring as temperatures rise. 
 
 ## Create and analyze recurrence intervals
 
-8. Create two separate data frames for MysterySite.Annual.30yr (first 30 years of record) and MysterySite.Annual.Full (all years of record). Use a pipe to create your new data frame(s) that includes the water year, the peak discharge observed in that year, a ranking of peak discharges, the recurrence interval, and the exceedende probability.
+8. Create two separate data frames for MysterySite.Annual.30yr (first 30 years of record) and MysterySite.Annual.30yr (all years of record). Use a pipe to create your new data frame(s) that includes the water year, the peak discharge observed in that year, a ranking of peak discharges, the recurrence interval, and the exceedende probability.
 
 9. Create a plot that displays the discharge vs. recurrence interval relationship for the two separate data frames (one set of points includes the values computed from the first 30 years of the record and the other set of points includes the values computed for all years of the record. 
 
 10. Create a model to predict the discharge for a 100-year flood for both sets of recurrence intervals. 
 
 ```{r}
+#8
+class(MysterySiteDischarge.time$WaterYear) #class is factor 
+MysterySiteDischarge.time$WaterYear <- as.numeric(as.character(MysterySiteDischarge.time$WaterYear))
+#had to look at solutions for line 99
 
+MysterySite.Annual.All <- MysterySiteDischarge.time %>% 
+  filter(WaterYear != "1965") %>% #all years of record
+  group_by(WaterYear) %>% 
+  summarise(PeakDischarge = max(Discharge)) %>% #initially used mutate when it should have been summarise, had to check
+  mutate(RankDischarge = rank(-PeakDischarge),
+         RecurranceInterval = (length(WaterYear)+1)/RankDischarge, #got help from Kateri on () placement
+         Exceedance = (1/RecurranceInterval))   
+              
+summary(MysterySiteDischarge.time$WaterYear)
+  
+MysterySite.Annual.30yr <-  MysterySiteDischarge.time %>% 
+   filter(WaterYear < 1996) %>% #first 30 years of record 
+   filter(WaterYear != "1965") %>% 
+   group_by(WaterYear) %>% 
+   summarise(PeakDischarge = max(Discharge)) %>% #initially used mutate when it should have been summarise, had to check
+   mutate(RankDischarge = rank(-PeakDischarge),
+         RecurranceInterval = (length(WaterYear)+1)/RankDischarge,
+         Exceedance = (1/RecurranceInterval)) 
+
+#9
+
+RecurrancePlot <- ggplot(MysterySite.Annual.30yr, aes(x = RecurranceInterval, y = PeakDischarge))+
+  geom_point()+
+  geom_point(data = MysterySite.Annual.All, color = "green", aes(x = RecurranceInterval, y = PeakDischarge))+
+  scale_x_log10()+
+  theme_classic()
+
+RecurrancePlot
+#had to look in example for how to combine two plots
+
+
+
+#10 - 100 year flood prediction model
+
+Mystery.RImodel.All <- lm(data = MysterySite.Annual.All, PeakDischarge ~ log10(RecurranceInterval)) 
+summary(Mystery.RImodel.All) 
+
+Mystery.RImodel.30 <- lm(data = MysterySite.Annual.30yr, PeakDischarge ~ log10(RecurranceInterval)) 
+summary(Mystery.RImodel.30) 
+
+Mystery.RImodel.All$coefficients[1] + Mystery.RImodel.All$coefficients[2]*log10(100) #4884.187 
+Mystery.RImodel.30$coefficients[1] + Mystery.RImodel.30$coefficients[2]*log10(100) #5630.873 
 
 ```
 
 11. How did the recurrence interval plots and predictions of a 100-year flood differ among the two data frames? What does this tell you about the stationarity of discharge in this river?
 
-> 
+> The 30 year model shows a 100 year flood event at approximately 5,630 cfs, whereas the full model shows the 100 year flood event at approximately 4,884 cfs. The first thirty years of record show slightly higher discharge 100 year events, indicating that the size of flood events may slightly be decreasing over time. I am curious if a paried T-test of model results from flood events at other recurrance intervals would show any significant trends, or if the difference between the 5,630 cfs and the 4,884 cfs 100 year events is small enought to not show any significant changes to the stationarity of the river. If I had to guess, I would say that the river is likeley remaining stationary over time. 
+
 
 
