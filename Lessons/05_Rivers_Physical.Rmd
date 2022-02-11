@@ -24,7 +24,7 @@ getwd()
 
 # install.packages("EcoHydRology")
 
-library(EcoHydRology)
+library(EcoHydRology) #load first
 library(tidyverse)
 library(dataRetrieval)
 library(lubridate)
@@ -69,27 +69,40 @@ EnoDischarge <- EnoDischarge %>%
          Stormflow_lfstat = Discharge - Baseflow_lfstat,
          Year = year(Date), 
          WaterYear = water_year(Date))
+#stormflow = total discharge - baseflow
+
 EnoDischarge$WaterYear <- as.numeric(as.character(EnoDischarge$WaterYear))
 
 # plot baseflow and total flow
 ggplot(EnoDischarge, aes(x = Date, y = Discharge)) +
   geom_line(color = "gray") +
   geom_line(aes(y = Baseflow_lfstat)) +
-  # scale_y_log10() +
+  scale_y_log10() + #helps see things
   labs(x = "Year", y = "Discharge (cfs)")
+#baseflow is dependent on groundwater
+#when groundwater is low, baseflow is low
 
 # calculate baseflow with the EcoHydRology package.
-# Note: this function creates two columns which can be joined onto the original dataset.
 EnoDischarge_basesep_EcoHydro <- BaseflowSeparation(EnoDischarge$Discharge)
 
+#bind two datasets back together
 EnoDischarge <- cbind(EnoDischarge, EnoDischarge_basesep_EcoHydro)
 
-# Let's compare the two approaches. How well do they match up, and is one biased a certain way?
-ggplot(EnoDischarge, aes(x = Baseflow_lfstat, y = bt)) +
-  geom_point(alpha = 0.1, size = 1) +
-  geom_abline(slope = 1, intercept = 0, color = "darkred")
 
-# How would we test that statistically? [add code here]
+# Let's compare the two approaches. How well do they match up, and is one biased a certain way?
+#are two baseflow methods equivalent?
+ggplot(EnoDischarge, aes(x = Baseflow_lfstat, y = bt)) +
+  geom_point(alpha = 0.3, size = 1) +
+  geom_abline(slope = 1, intercept = 0, color = "darkred")
+#more similar at smaller flows
+#more departures at higher flows 
+#divergence is from event-based flows 
+
+# How would we test that statistically?
+#one way to do this - linear model
+summary(lm(data = EnoDischarge, bt ~ Baseflow_lfstat))
+#ideally intercept is 0
+#you can also do a paired t-test
 
 ```
 
@@ -110,6 +123,7 @@ ggplot(EnoDischarge_18_20, aes(x = Date, y = Discharge)) +
   scale_y_log10() +
   labs(x = "Year", y = "Discharge (cfs)")
 
+#same thing, filtering on date
 EnoDischarge_ex<- EnoDischarge %>%
   filter(Date > "2019-07-15" & Date < "2019-09-01")
 
@@ -127,20 +141,25 @@ ggplot(EnoDischarge_ex, aes(x = Date, y = Discharge)) +
 Now, let's calculate some annual flow metrics for the Eno. We can add up daily discharge to calculate annual discharge. 
 
 ```{r}
+#how much baseflow contributes to flow in the eno across the years
+#using EcoHydRology package
+
+#creating a summary data frame
 EnoDischarge_summary <- EnoDischarge %>%
   group_by(WaterYear) %>%
-  summarise(Discharge.acft.yr = sum(Discharge)*723.968, # what is this factor?
+  summarise(Discharge.acft.yr = sum(Discharge)*723.968, #cfs to acre feet/year 
             Baseflow.acft.yr = sum(bt)*723.968,
             Stormflow.acft.yr = sum(qft)*723.968,
             Prop.bf = Baseflow.acft.yr/Discharge.acft.yr,
             Prop.sf = Stormflow.acft.yr/Discharge.acft.yr) %>%
- mutate_if(is.numeric, round, 2) # notes here
-
+ mutate_if(is.numeric, round, 2) #rounds numeric column values to 2 decimal places
+#remember to evaluate 1st and last year for missing data
 
 ggplot(EnoDischarge_summary, aes(x = WaterYear, y = Discharge.acft.yr)) +
   geom_line() +
-  geom_line(aes(y = Baseflow.acft.yr), lty = 2)
+  geom_line(aes(y = Baseflow.acft.yr), lty = 2) #this changes line type
 
+#proportion over time 
 ggplot(EnoDischarge_summary, aes(x = WaterYear, y = Prop.bf)) +
   geom_col()
 
@@ -163,7 +182,34 @@ After you've completed your task, find a partner who analyzed the other gage. Co
 This exercise is based off a case study in Zimmer et al. 2020: (Zero or not? Causes and consequences of zero-flow stream gage  readings)[https://wires.onlinelibrary.wiley.com/doi/10.1002/wat2.1436]
 
 ```{r}
+#acquire discharge data and perform a baseflow separation analysis
+CoolidgeDischarge <- readNWISdv(siteNumbers = "07137500",
+                     parameterCd = "00060", # discharge (ft3/s)
+                     startDate = "1960-01-01", 
+                     endDate = "2005-12-31")
 
+names(CoolidgeDischarge)[4:5] <- c("Discharge", "Approval.Code")
 
+attr(CoolidgeDischarge, "variableInfo")
+attr(CoolidgeDischarge, "siteInfo")
+
+CoolidgeDischarge <- CoolidgeDischarge %>%
+  mutate(Baseflow_lfstat = baseflow(Discharge), 
+         Stormflow_lfstat = Discharge - Baseflow_lfstat,
+         Year = year(Date), 
+         WaterYear = water_year(Date))
+
+CoolidgeDischarge$WaterYear <- as.numeric(as.character(CoolidgeDischarge$WaterYear))
+
+CoolidgeDischarge_basesep_EcoHydro <- BaseflowSeparation(CoolidgeDischarge$Discharge)
+
+CoolidgeDischarge <- cbind(CoolidgeDischarge, CoolidgeDischarge_basesep_EcoHydro)
+
+ggplot(CoolidgeDischarge, aes(x = Date, y = Discharge)) +
+  geom_line(color = "gray") +
+  geom_line(aes(y = Baseflow_lfstat)) +
+  scale_y_log10() + 
+  labs(x = "Year", y = "Discharge (cfs)")
+#seeing effects of groundwater pumping on the oglala aquifer
 ```
 
