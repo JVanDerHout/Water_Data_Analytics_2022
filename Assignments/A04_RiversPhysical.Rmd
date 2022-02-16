@@ -1,6 +1,6 @@
 ---
 title: "Assignment 4: Physical Properties of Rivers"
-author: "Student Name"
+author: "Jackie Van Der Hout"
 output: pdf_document
 geometry: margin=2.54cm
 editor_options: 
@@ -30,8 +30,52 @@ Target due date: 2022-02-15
 4. Calculate annual total discharge, annual baseflow, and annual proportion baseflow for the two sites.
 
 ```{r}
+#1
+getwd()
+library(EcoHydRology)
+library(tidyverse)
+library(cowplot)
+library(dataRetrieval)
+library(lubridate)
+library(lfstat)
 
+theme_set(theme_light())
 
+#2
+BitterrootDischarge <- readNWISdv(siteNumbers = "12344000",
+                     parameterCd = "00060", # discharge (ft3/s)
+                     startDate = "2012-10-01", 
+                     endDate = "2021-09-30")
+
+names(BitterrootDischarge)[4:5] <- c("Discharge", "Approval.Code")
+attr(BitterrootDischarge, "variableInfo")
+attr(BitterrootDischarge, "siteInfo")
+
+NehalemDischarge <- readNWISdv(siteNumbers = "14299800",
+                     parameterCd = "00060", # discharge (ft3/s)
+                     startDate = "2012-10-01", 
+                     endDate = "2021-09-30")
+
+names(NehalemDischarge)[4:5] <- c("Discharge", "Approval.Code")
+attr(NehalemDischarge, "variableInfo")
+attr(NehalemDischarge, "siteInfo")
+
+#3
+
+BitterrootDischarge <- BitterrootDischarge %>%
+  mutate(Baseflow_lfstat = baseflow(Discharge), 
+         Stormflow_lfstat = Discharge - Baseflow_lfstat,
+         Year = year(Date), 
+         WaterYear = water_year(Date))
+
+NehalemDischarge <- NehalemDischarge %>%
+  mutate(Baseflow_lfstat = baseflow(Discharge), 
+         Stormflow_lfstat = Discharge - Baseflow_lfstat,
+         Year = year(Date), 
+         WaterYear = water_year(Date))
+
+BitterrootDischarge$WaterYear <- as.numeric(as.character(BitterrootDischarge$WaterYear))
+NehalemDischarge$WaterYear <- as.numeric(as.character(NehalemDischarge$WaterYear))
 ```
 
 ## Analyze seasonal patterns in discharge
@@ -40,10 +84,75 @@ Target due date: 2022-02-15
 6. For both sites, create a graph displaying annual total discharge and annual baseflow across years, and a second graph displaying the proportion baseflow across years (adjust axis labels accordingly). Plot these graphs on top of one another using `plot_grid`. Remember to align the axes!
 
 ```{r}
+#5
+BitterrootPlot <- ggplot(BitterrootDischarge, aes(x = Date, y = Discharge)) +
+  geom_line(color = "blue", alpha = 0.5) +
+  geom_line(aes(y = Baseflow_lfstat)) +
+  scale_y_log10() + 
+  labs(x = "Year", y = expression("Discharge (ft"^3*"/s)"), title = "Bitterroot River")
+BitterrootPlot
 
+NehalemPlot <- ggplot(NehalemDischarge, aes(x = Date, y = Discharge)) +
+  geom_line(color = "blue", alpha = 0.5) +
+  geom_line(aes(y = Baseflow_lfstat)) +
+  scale_y_log10() + 
+  labs(x = "Year", y = expression("Discharge (ft"^3*"/s)"), title = "Nehalem River")
+NehalemPlot
+
+#6a: Bitterroot
+
+#had to look in guide for this one
+BitterrootDischarge_summary <- BitterrootDischarge %>%
+  group_by(WaterYear) %>%
+  summarise(Discharge.acft.yr = sum(Discharge)*723.968, #cfs to acre feet/year 
+            Baseflow.acft.yr = sum(Baseflow_lfstat, na.rm = TRUE)*723.968,
+            Stormflow.acft.yr = sum(Stormflow_lfstat, na.rm = TRUE)*723.968,
+            Prop.bf = Baseflow.acft.yr/Discharge.acft.yr,
+            Prop.sf = Stormflow.acft.yr/Discharge.acft.yr) %>%
+ mutate_if(is.numeric, round, 2)
+
+class(BitterrootDischarge_summary$WaterYear) #reclassify
+BitterrootDischarge_summary$WaterYear <- as.numeric(as.character(BitterrootDischarge_summary$WaterYear))
+
+AnnualBitterroot <- ggplot(BitterrootDischarge_summary, aes(x = WaterYear, y = Discharge.acft.yr))+
+  geom_line()+
+  geom_line(aes(y = Baseflow.acft.yr), lty = 2)+
+  scale_x_continuous(breaks = c(2012, 2014, 2016, 2018, 2020))+
+  labs(x = "Water Year", y = "Discharge (Acre Feet/Year)")
+
+PropBitterroot <- ggplot(BitterrootDischarge_summary, aes(x = WaterYear, y = Prop.bf)) +
+  geom_col()+
+  labs(x = "Water Year", y = "Baseflow Proportion", title = "")
+
+plot_grid(AnnualBitterroot, PropBitterroot)
+
+#6b: Nehalem
+NehalemDischarge_summary <- NehalemDischarge %>%
+  group_by(WaterYear) %>%
+  summarise(Discharge.acft.yr = sum(Discharge)*723.968, #cfs to acre feet/year 
+            Baseflow.acft.yr = sum(Baseflow_lfstat, na.rm = TRUE)*723.968,
+            Stormflow.acft.yr = sum(Stormflow_lfstat, na.rm = TRUE)*723.968,
+            Prop.bf = Baseflow.acft.yr/Discharge.acft.yr,
+            Prop.sf = Stormflow.acft.yr/Discharge.acft.yr) %>%
+ mutate_if(is.numeric, round, 2)
+
+class(NehalemDischarge_summary$WaterYear) #reclassify
+NehalemDischarge_summary$WaterYear <- as.numeric(as.character(NehalemDischarge_summary$WaterYear))
+
+AnnualNehalem <- ggplot(NehalemDischarge_summary, aes(x = WaterYear, y = Discharge.acft.yr))+
+  geom_line()+
+  geom_line(aes(y = Baseflow.acft.yr), lty = 2)+
+  scale_x_continuous(breaks = c(2012, 2014, 2016, 2018, 2020))+
+  labs(x = "Water Year", y = "Discharge (Acre Feet/Year)", title = "")
+
+PropNehalem <- ggplot(NehalemDischarge_summary, aes(x = WaterYear, y = Prop.bf)) +
+  geom_col()+
+  labs(x = "Water Year", y = "Baseflow Proportion")
+
+plot_grid(AnnualNehalem, PropNehalem)
 
 ```
 
 7. How do these rivers differ in their discharge and baseflow, both within and across years? How would you attribute these patterns to the climatic conditions in these locations?
 
-> 
+> The Bitterroot river has peakier baseflows, with steep inclines and declines. The Nehalem river has lower overall baseflows but much peakier storm events. This indicates that the Bitterroot is fed more by snow melt while the Nehalem river is fed by seasonal storm events. Both have strong seasonal patterns, but the Bitterroot river seems to have more flow contributions from summer storms where as the Nehalem river has very little summer flow contributions. The Bitterroot river has seen some variblity with overall discharge and baseflow conditions. Across the years, the Nehalem River has seen low baseflows and droughtline conditions in 2013 and more stable discharge quantities since then, with some variability. It is possible that long-standing western drought conditions have affected the watersheds of both of these rivers. 
