@@ -27,9 +27,10 @@ library(lubridate)
 library(LAGOSNE)
 
 theme_set(theme_classic())
-options(scipen = 100)
+options(scipen = 100) #sets report number of digits for exp notation
 
 lagosne_get(dest_folder = LAGOSNE:::lagos_path(), overwrite = TRUE)
+#downloads the database onto your machine
 
 ```
 
@@ -46,12 +47,15 @@ https://cont-limno.github.io/LAGOSNE/articles/lagosne_structure.html
 ```{r}
 # Load LAGOSNE data into R session
 LAGOSdata <- lagosne_load()
+#data is loaded as a list, not a dataframe
+#we have a lot of different dataframes within the list object
 names(LAGOSdata)
 
 # If the package installation and data download has not worked, use this code: 
 # load(file = "./Data/Raw/LAGOSdata.rda")
 
 # Exploring the data types that are available
+#$ is used to pull out dataframes
 LAGOSlocus <- LAGOSdata$locus
 LAGOSstate <- LAGOSdata$state
 LAGOSnutrient <- LAGOSdata$epi_nutr
@@ -72,9 +76,12 @@ For example, let's find out how many lakes are in each state. Note that LAGOSloc
 # Join data frames
 LAGOSlocations <- left_join(LAGOSlocus, LAGOSstate, by = "state_zoneid")
 
+#how many lakes are in each state? 
+#bar chart does not require y value
 ggplot(LAGOSlocations, aes(x = state)) + 
-  geom_bar(stat = "count")
+  geom_bar(stat = "count") #counts # of rows
 
+#looking at median size of lakes per state
 ggplot(LAGOSlocations, aes(x = state, y = lake_area_ha)) + 
   geom_boxplot() +
   scale_y_log10()
@@ -82,14 +89,17 @@ ggplot(LAGOSlocations, aes(x = state, y = lake_area_ha)) +
 ```
 
 ## Trophic state as a metric for water quality
+Trophic states relates to nutrients an net primary productivity.
+High trophic states can result in a lot of respiration, reducing DO levels, impacting the food web. Cyanotoxins produced by HABs.
 Robert Carlson's 1977 paper, "A trophic state index for lakes," established the first numeric categorization system for a lake's **trophic state**, the amount of biomass a given system can sustain. Trophic state is a useful water quality metric, as it can give insight into the propensity of a system to develop algal blooms, the degree of nutrient loading in the system, and a range of other potential water quality concerns experienced by other lakes with a similar trophic state (e.g., hypoxia).
 
 To calculate the **Trophic State Index**, three variables can be used. Note these should not be used to define trophic state but as indicators of the broader condition. Comparing these values in a given lake can give insight into the broader mechanisms at play.
 
 * *chlorophyll a concentration*, a proxy for algal (phytoplankton) biomass. Pros: direct measure of primary productivity
-* *Secchi disk transparency*, a measure of water clarity. Pros: simple and cheap. Cons: may yield a high TSI in highly colored lakes and in lakes where particulate matter is comprised of non-algal material 
+* *Secchi disk transparency*, a measure of water clarity. Pros: simple and cheap. Cons: may yield a high TSI in highly colored lakes and in lakes where particulate matter is comprised of non-algal material (multiple factors contributing)
 * *Total phosphorus (TP)*, a nutrient essential for growth of primary producers. Assumptions: phosphorus is the limiting nutrient for phytoplankton growth (this assumption often holds only for summer months)
 
+Equations being used to do our calculations today
 $TSI(Chl) = 10(6 - (2.04 - 0.68 ln Chl/ln 2))$
 
 $TSI(SD) = 10(6 - (ln SD/ln 2))$
@@ -126,6 +136,7 @@ ggplot(LAGOStrophic, aes(x = as.factor(samplemonth), y = chla)) +
   geom_boxplot(outlier.shape = NA, color = "#1f968b", fill = NA) +
   scale_y_log10() +
   labs(x = "Month", y = expression("Chl a ("*mu*"g/L)"))
+#way more samples in the summer months,  skews data a little 
 
 ggplot(LAGOStrophic, aes(x = as.factor(samplemonth), y = secchi)) +
   geom_jitter(alpha = 0.2, size = 0.5) +
@@ -150,7 +161,7 @@ Let's add a TSI value calculated from each of the three variables to the data fr
 
 ```{r}
 LAGOStrophic <- LAGOStrophic %>%
-  filter(samplemonth %in% c(5:9)) %>%
+  filter(samplemonth %in% c(5:9)) %>% #filter for the growing season
   mutate(TSI.chl = round(10*(6 - (2.04 - 0.68*log(chla)/log(2)))),
          TSI.secchi = round(10*(6 - (log(secchi)/log(2)))), 
          TSI.tp = round(10*(6 - (log(48/tp)/log(2)))), 
@@ -164,6 +175,7 @@ class(LAGOStrophic$trophic.class)
 LAGOStrophic$trophic.class <- factor(LAGOStrophic$trophic.class,
                                      levels = c("Oligotrophic", "Mesotrophic", "Eutrophic", "Hypereutrophic"))
 
+#hex codes for colorpalate 
 #scales::show_col(colormap(colormap = colormaps$magma, nshades=16))
 
 # Let's save the LAGOStrophic dataset as a csv in our Data folder. 
@@ -182,6 +194,9 @@ ggplot(LAGOStrophic, aes(x = TSI.chl, y = TSI.secchi, color = samplemonth)) +
   geom_abline(slope = 1, intercept = 0) +
   scale_color_viridis_c(option = "magma", end = 0.8, direction = -1) +
   theme(legend.position = "top")
+#when TSI secchi is higher than chl reductions in clarity come from turbity
+#when TSI chl is higher than secchi, reductions in clarity come from chlorophyll
+#these conditions are across the year, no widespread difference in seasonality
 
 ggplot(LAGOStrophic, aes(x = TSI.chl, y = TSI.tp, color = samplemonth)) +
   geom_point(alpha = 0.1) + 
@@ -190,6 +205,8 @@ ggplot(LAGOStrophic, aes(x = TSI.chl, y = TSI.tp, color = samplemonth)) +
   geom_abline(slope = 1, intercept = 0) +
   scale_color_viridis_c(option = "magma", end = 0.8, direction = -1) +
   theme(legend.position = "top")
+#when TSI tp is higher than chl is when tp is not limiting primary production
+#when TSI chl than tp 
 
 ```
 
@@ -211,7 +228,7 @@ ggplot(LAGOStrophic, aes(x = state, y = TSI.chl)) +
   geom_hline(yintercept = 70, lty = 2, color = "gray")
 
 ggplot(LAGOStrophic, aes(x = state, fill = trophic.class)) +
-  geom_bar(stat = "count", position = position_dodge(preserve = "single")) +
+  geom_bar(stat = "count", position = position_dodge(preserve = "single")) + #preserve = single gives each variable the same width regardless of factor 
   theme(legend.position = "top") +
   labs(x = "", y = "Number of Observations", fill = "Trophic Class") +
   scale_fill_viridis_d(option = "magma", begin = 0.2, end = 0.8, direction = -1)
