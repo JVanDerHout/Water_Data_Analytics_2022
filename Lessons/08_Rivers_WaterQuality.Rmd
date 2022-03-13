@@ -72,6 +72,8 @@ NeuseWQ <- readWQPqw(siteNumbers = "USGS-02089500", # Neuse River at Kinston, NC
                                      "31673"),  # Fecal streptocci, CFU/100 mL
                      startDate = "1976-01-01",
                      endDate = "")
+#data retrieval package can be used to download data by type or by location
+#note that the above is accessing from WQ portal and you have to add USGS- before site number
 
 unique(NeuseWQ$CharacteristicName)
 
@@ -80,7 +82,7 @@ NeuseFlow <- readNWISdv(siteNumbers = "02089500",
                      startDate = "1976-01-01",
                      endDate = "")
 
-NeuseWQ_processed <- NeuseWQ %>%
+NeuseWQ_processed <- NeuseWQ %>% #creating easier to use dataset 
   select(MonitoringLocationIdentifier, ActivityStartDate, HydrologicCondition, 
          CharacteristicName, ResultMeasureValue) %>%
   mutate(Variable = case_when(CharacteristicName == "Fecal Coliform" ~ "FecalColiform_cfu.100mL", 
@@ -92,17 +94,22 @@ NeuseWQ_processed <- NeuseWQ %>%
   select(-CharacteristicName) %>%
   pivot_wider(names_from = "Variable", values_from = "ResultMeasureValue")
 
+#to choose what is relevant to the water quality variables;
+#filter based on flow between min and max of dataset if you are going to be combining datasets
 NeuseFlow_processed <- NeuseFlow %>%
   select(ActivityStartDate = Date, Flow_cfs = X_00060_00003) %>%
   filter(ActivityStartDate >= min(NeuseWQ_processed$ActivityStartDate) & 
            ActivityStartDate <= max(NeuseWQ_processed$ActivityStartDate))
 
+#join datasets 
 NeuseWQFlow_processed <- NeuseWQ_processed %>%
   full_join(., NeuseFlow_processed) %>%
   mutate(Year = year(ActivityStartDate), 
          Month = month(ActivityStartDate), 
-         DOY = yday(ActivityStartDate),)
+         DOY = yday(ActivityStartDate))
 
+#create a longer dataset (pivot_longer)
+#long datasets allow for facet wrap to be done easily to create facets for each variable 
 NeuseWQFlow_long <- NeuseWQFlow_processed %>%
   pivot_longer(cols = c("FecalColiform_cfu.100mL", "FecalStrep_cfu.100mL", "SpC_uS.cm",
                         "Sodium_mg.L", "Magnesium_mg.L", "Calcium_mg.L", "Flow_cfs"),
@@ -137,20 +144,24 @@ ggplot(NeuseWQFlow_processed, aes(x = ActivityStartDate, y = SpC_uS.cm)) +
   geom_point() +
   scale_y_log10() +
   labs(x = "Date", y = expression("Specific Conductivity ("*mu*"S/cm)"))
+#what might cause that variability? 
+#what trends are there over time? 
 
 ```
 
 What is the relationship between flow and the water quality indicators?
 
 ```{r}
-
+#many river trends are associated with flow
+#mapping the two on top of one another by day of year 
 ggplot(NeuseFlow_summary, aes(x = DOY)) +
   geom_line(aes(y = median_Flow_cfs)) +
   geom_ribbon(aes(ymin = p25_Flow_cfs, ymax = p75_Flow_cfs), fill = "gray", alpha = 0.2) +
-  #geom_point(data = NeuseWQFlow_processed, aes(y = FecalColiform_cfu.100mL)) +
-  #geom_point(data = NeuseWQFlow_processed, aes(y = SpC_uS.cm)) +
+  geom_point(data = NeuseWQFlow_processed, aes(y = FecalColiform_cfu.100mL)) +
+  geom_point(data = NeuseWQFlow_processed, aes(y = SpC_uS.cm)) +
   scale_y_log10() +
   labs(x = "Day of Year", y = "Flow (cfs)")
+#highest concentrations are during the dry season
 
 ggplot(NeuseWQFlow_processed, aes(x = Flow_cfs, y = FecalColiform_cfu.100mL)) +
   geom_point() +
@@ -159,6 +170,7 @@ ggplot(NeuseWQFlow_processed, aes(x = Flow_cfs, y = FecalColiform_cfu.100mL)) +
   scale_y_log10() +
   labs(x = "Flow (cfs)", y = "Fecal Coliform (cfu/100 mL)")
 
+#linear model to go with the above figure 
 summary(lm(data = NeuseWQFlow_processed, log10(FecalColiform_cfu.100mL) ~ log10(Flow_cfs)))
 
 ggplot(NeuseWQFlow_processed, aes(x = Flow_cfs, y = SpC_uS.cm)) +
@@ -169,7 +181,7 @@ ggplot(NeuseWQFlow_processed, aes(x = Flow_cfs, y = SpC_uS.cm)) +
   labs(x = "Flow (cfs)", y = expression("Specific Conductivity ("*mu*"S/cm)"))
 
 summary(lm(data = NeuseWQFlow_processed, log10(SpC_uS.cm) ~ log10(Flow_cfs)))
-
+plot(lm(data = NeuseWQFlow_processed, log10(SpC_uS.cm) ~ log10(Flow_cfs)))
 ```
 
 Exercise: 
@@ -182,6 +194,12 @@ Exercise:
 3. How do fecal coliform and specific conductivity vary as a function of hydrologic condition?
 
 ```{r}
+NeuseFlowWQ_processed <- NeuseFlowWQ_processed %>% 
+  select()
+
+ggplot(NeuseFlowWQ_processed, aes(x = HydrologicCondition, y = FecalColiform_cfu.100mL))+
+  geom_line()+
+  facet_wrap(~HydrologicCondition)
 
 
 ```

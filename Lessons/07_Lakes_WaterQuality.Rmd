@@ -144,15 +144,19 @@ LAGOScovariates <- LAGOSjoined %>%
   select(chla, tn, tp, doc, secchi,
          maxdepth,lake_area_ha, buffer500m_slope_mean,
          percentdeveloped, percentforest, percentrowcrops)
+#creating new columns to combine land types 
 
-# create a correlation matrix. Necessitates only complete cases.
+# create a correlation matrix. Need to use only complete cases.
 LAGOScorr <- cor(LAGOScovariates, use = "complete.obs")
 
 # plot correlation matrix.
 corrplot(LAGOScorr)
 
-# customize.
+# customize the corr matrix to only show half and without the diagonal itself 
 corrplot(LAGOScorr, type = "upper", diag = FALSE, tl.cex = 0.8, tl.col = "black")
+
+#you could then do an AIC to reduce dimensions to do a linear or multiple regression
+#you could use random forest to rank predictor variables 
 
 ```
 
