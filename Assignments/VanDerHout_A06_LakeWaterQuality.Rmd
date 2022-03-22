@@ -120,7 +120,7 @@ NCdata.wrangled <- NCdata_processed %>%
 ActivityConductingOrganizationText, MonitoringLocationIdentifier, Depth_m, ResultMeasureValue, Variable) %>% 
   group_by(OrganizationIdentifier, OrganizationFormalName, ActivityStartDate, 
 ActivityConductingOrganizationText, MonitoringLocationIdentifier, Depth_m, Variable) %>% 
-  summarise(ResultMeasureValue) %>% 
+  summarise(ResultMeasureValue = mean(ResultMeasureValue, na.rm = TRUE)) %>% 
   pivot_wider(names_from = "Variable", values_from = "ResultMeasureValue") %>%
   mutate(month = month(ActivityStartDate),
          year = year(ActivityStartDate)) %>% 
@@ -129,8 +129,11 @@ ActivityConductingOrganizationText, MonitoringLocationIdentifier, Depth_m, Varia
 # got help on pivotwider 
 
 #create a graph visualizing the chlorophyll-TP stressor-response relationship. Add a line of best fit for the linear regression, and adjust axis scales and labels as needed. 
+class(NCdata.wrangled$TDP_mgL)
+class(NCdata.wrangled$Chla_ugL)
 
 ggplot(NCdata.wrangled, aes(x = TDP_mgL, y = Chla_ugL))+
+  geom_point()+
   geom_smooth(method = "lm", se = TRUE )
 
 ```

@@ -1,6 +1,6 @@
 ---
 title: "Assignment 7: Water Quality in Rivers"
-author: "Student Name"
+author: "Jackie Van Der Hout"
 output: pdf_document
 geometry: margin=2.54cm
 editor_options: 
@@ -28,6 +28,12 @@ Target due date: 2022-03-22
 
 
 ```{r}
+#1
+getwd()
+library(tidyverse)
+library(lubridate)
+library(cowplot)
+library(dataRetrieval)
 
 ```
 
@@ -39,20 +45,28 @@ This assignment will look at another measure of water quality - oxygen concentra
 2. Import the oxygen water quality data from New Hope Creek at Blands (using `readWQPqw()`, site code `USGS-02097314`, parameter code `00300`). Make a data frame called `NewHopeDO` that includes only the Date and dissolved oxygen concentration values. Rename the column names "Date" and "DO_mgL".
 
 ```{r}
+#2
+NewHopeOWQ <- readWQPqw(siteNumbers = "USGS-02097314",
+                        parameterCd = c("00300"))
 
-
+NewHopeDO <- NewHopeOWQ %>% 
+  select(ActivityStartDate, ResultMeasureValue) %>% 
+  rename(Date = ActivityStartDate) %>% 
+  rename(DO_mgL = ResultMeasureValue)
 ```
 
 3. Create a ggplot of oxygen concentrations over time. Include a horizonal line at 2 mg/l to show the hypoxia cutoff. 
 
 ```{r}
-
-
+DOplot <- ggplot(NewHopeDO, aes(x = Date, y = DO_mgL)) +
+  geom_point() +
+  geom_hline(yintercept = 2, lty = 2) + 
+  labs(x = "Date", y = "Dissolved Oxygen (mg/L)")
 ```
 
 4. What do you notice about the frequency of hypoxia over time?
 
-> 
+> Hypoxia seems to have occured early on in the dataset and not since the early 1980s. However, there may be an overall trend in decrease DO in the water column over time. 
 
 ## Nutrients
 
@@ -60,7 +74,13 @@ This assignment will look at another measure of water quality - oxygen concentra
 
 
 ```{r}
+NewHopeTP <- readWQPqw(siteNumbers = "USGS-02097314",
+                        parameterCd = c("00665"))
 
+NewHopeTP <- NewHopeTP %>% 
+  select(ActivityStartDate, ResultMeasureValue) %>% 
+  rename(Date = ActivityStartDate) %>% 
+  rename(TP_mgL = ResultMeasureValue)
 
 ```
 
@@ -68,30 +88,46 @@ This assignment will look at another measure of water quality - oxygen concentra
 
 ```{r}
 
+TPplot <- ggplot(NewHopeTP, aes(x = Date, y = TP_mgL)) +
+  geom_point() +
+  labs(x = "Date", y = "Total Phosphorous")
 
-
+plot_grid(DOplot, TPplot, ncol = 1)
 ```
 
 7. What do these plots tell you about nutrient concentrations over time? How might nutrient concentrations relate to your previous plot of hypoxia events?
 
-> 
+> Nutrients are correlated with the increase and decrease of DO. Patterns in more variation in concentrations of phosphorous and dissolved oxygen are especially prevalent in the early 80s and lower and more stable levels of Phosphorous are mirrored in more stable and mid-range DO levels. This might indicate that higher levels of nutrient concentrationsare related to the occurence of hypoxia events. 
 
 ## Discharge and Dissolved Oxygen
 
 8. Turbulent flow in rivers mixes oxygen into the water column. As discharge decreases, water moves slower, and oxygen diffuses slower into the water from the atmosphere. Download and reformat the daily discharge data for New Hope Creek (function `readNWISdv()`, site `02097314`, parameter `00060`). 
 
 ```{r}
+NewHopeQ <- readNWISdv(siteNumbers = "02097314",
+                        parameterCd = c("00060"))
 
-
+NewHopeQ_processed <- NewHopeQ %>%
+  select(Date, Flow_cfs = X_00060_00003) 
 ```
 
 9.  Create two ggplots stacked with `plot_grid` that show DO concentrations and discharge over time, for the two years we observed hypoxia (1983 and 1984).
 
 ```{r}
+QPlot80s <- ggplot(subset(NewHopeQ_processed, Date < "1985-01-01"), aes(x = Date, y = Flow_cfs)) +
+  geom_point() +
+  labs(x = "Date", y = "Flow (cfs)")
 
 
+DOplot80s <- ggplot(subset(NewHopeDO, Date < "1985-01-01"), aes(x = Date, y = DO_mgL)) +
+  geom_point() +
+  geom_hline(yintercept = 2, lty = 2) + 
+  labs(x = "Date", y = "Dissolved Oxygen (mg/L)")
+
+plot_grid(DOplot80s, Qplot80s, ncol = 1)
+#looked for help with modifying the dates
 ```
 
 10. Do hypoxic events happen in the wet or the dry season? Why might that be?
 
-> 
+> Hypoxic events occur in the dry season. This occurs because less water quantity means that water heats faster, and warmer water has a lower oxygen holding capacity. Additionally, warmer water may facilitate the growth of algae which will later die and contribute to further increase in biological oxygen demand through their decomposition. 
