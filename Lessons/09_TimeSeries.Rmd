@@ -69,7 +69,7 @@ names(NeuseFlow)[4:5] <- c("Discharge", "Approval.Code")
 # Plot discharge over time
 ggplot(NeuseFlow, aes(x = Date, y = Discharge)) +
   geom_line() +
-  labs(x = "", y = "Discharge (cfs)")+
+  labs(x = "", y = "Discharge (cfs)")#+
   #scale_y_log10()
 
 

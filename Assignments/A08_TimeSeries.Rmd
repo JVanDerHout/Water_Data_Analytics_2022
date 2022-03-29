@@ -1,6 +1,6 @@
 ---
 title: "Assignment 8: Time Series Analysis"
-author: "Student Name"
+author: "Jackie Van Der Hout"
 output: pdf_document
 geometry: margin=2.54cm
 editor_options: 
@@ -28,7 +28,13 @@ Target due date: 2022-03-29
 
 
 ```{r setup}
-
+getwd()
+library(tidyverse)
+library(lubridate)
+library(trend)
+library(forecast)
+library(dataRetrieval)
+theme_set(theme_light())
 ```
 
 ## Data Import and Processing
@@ -38,6 +44,26 @@ Target due date: 2022-03-29
 4. Create a new data frame with the sum of monthly discharge in acre-feet per month.
 
 ```{r}
+#2
+ClearFlow <- readNWISdv(siteNumbers = "06719505",
+                     parameterCd = "00060", 
+                     startDate = "1975-01-01", 
+                     endDate = "2021-01-01")
+
+names(ClearFlow)[4:5] <- c("Discharge", "Approval.Code")
+sum(is.na(ClearFlow)) #no NA values, no need to interpolate or otherwise close gaps 
+
+#3
+ggplot(ClearFlow, aes(x = Date, y = Discharge)) +
+  geom_line() +
+  labs(x = "Date", y = "Discharge (cfs)")
+
+#4
+ClearFlowSum <- ClearFlow %>% 
+  mutate(Year = year(Date),
+        Month = month(Date)) %>% 
+  group_by(Year, Month) %>% 
+  summarise(Discharge = sum(Discharge)*1.98347)
 
 ```
 
@@ -48,15 +74,22 @@ Target due date: 2022-03-29
 7. Visualize the decomposed time series.
 
 ```{r}
+#5
+ClearFlow_timeseries <- ts(ClearFlowSum$Discharge, frequency = 12,
+                           start = c(1975, 01, 01), end = c(2021, 01, 01))
 
+#6
+ClearFlow_decomposed <- stl(ClearFlow_timeseries, s.window = "periodic")
 
+#7
+plot(ClearFlow_decomposed)
 ```
 
 8. How do the seasonal and trend components of the decomposition compare to the Neuse River discharge dataset? 
 
-> Seasonal: 
+> Seasonal: Clear Creek appears to have a much stronger seasonal flow pattern than the Neuse river does, with a steeper slope between seasons indicating more a difference in flow. This is hard to detect by sight but is clear upon examination of the scales of the axes between the two plots. 
 
-> Trend: 
+> Trend: While both trendlines seem to indicate a good amount of variability over time, Clear Creek seems to be experiencing greater variation in trends in both positive and negative directions, as is also apparent when comparing the scale of the trend axes. 
 
 ## Trend Analysis
 Research question: Has there been a monotonic trend in discharge in Clear Creek over the period of study?
@@ -64,12 +97,19 @@ Research question: Has there been a monotonic trend in discharge in Clear Creek 
 9. Run a Seasonal Mann-Kendall test on the monthly discharge data. Inspect the overall trend and the monthly trends. 
 
 ```{r}
+ClearFlow_trend <- smk.test(ClearFlow_timeseries)
+
+# Inspect results
+ClearFlow_trend
+summary(ClearFlow_trend)
+#positive z score says that spacing between points is in a positive direction over time 
+
 
 ```
 
 10. Is there an overall monotonic trend in discharge over time? Are there monthly trends over time? If so, are they positive or negative?
 
-> 
+> Here the SMK test is not showing a clear trend over time. While there is a slight significant positive trend in flow in April, possibly indicating earlier snowmelt times, overall variability between positive and negative means that the trend is not monotonic. 
 
 
 ## Forecasting
@@ -79,10 +119,18 @@ Research question: can we predict discharge in Clear Creek moving into the futur
 12. Make a prediction into the future and plot the future predictions. 
 
 ```{r}
- 
+auto.arima(ClearFlow_timeseries, trace = TRUE)
+
+#says with drift, is there anything I need to change? 
+fit <- arima(ClearFlow_timeseries, c(1,0,0),seasonal = list(order = c(1,1,0), period = 12))
+
+Clearprediction <- predict(fit, n.ahead = 10*12) 
+
+# plot future predictions  
+ts.plot(ClearFlow_timeseries, Clearprediction$pred, lty = c(1, 3))
 
 ```
 
 13. How did the forecasting for Clear Creek compare to the Neuse River?
 
-> 
+> The Neuse river forecasting decomposed into a single value over time, while the Clear Creek forecasting preserved the seasonal nature of the flow patterns into the future, though it may not have captured the increase in variability, both positive and negative, that the flow regime has experienced. 
