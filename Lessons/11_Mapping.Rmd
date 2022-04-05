@@ -17,6 +17,10 @@ editor_options:
 
 What are some examples of spatial data in the aquatic sciences? Why might you want to map these?
 
+-Water is moving and is spatial 
+-Elevation and flow lines
+-Pollutant source, transport and fate
+
 ## Spatial visualization
 
 The geometry of a given spatial data point consists of coordinates in 2-, 3-, or 4-dimensional space. These dimensions are: 
@@ -60,7 +64,7 @@ library(maps)
 # install.packages("gganimate")
 library(gganimate)
 
-theme_set(theme_classic())
+theme_set(theme_light())
 options(scipen = 4)
 
 # Load LAGOSNE data into R session
@@ -77,8 +81,9 @@ We will be using the `st_as_sf` function today, which converts an object to a si
 ```{r}
 # generate a map of U.S. states
 states <- st_as_sf(map(database = "state", plot = TRUE, fill = TRUE, col = "white"))
+plot(states)
 
-# filter only states that are included in the LAGOSNE database
+# filter only states that are included in the LAGOSNE database (only NE)
 states.subset <- filter(states, ID %in% 
                           c("minnesota", "iowa", "wisconsin", "illinois",
                             "missouri", "michigan", "indiana", "ohio",
@@ -106,11 +111,15 @@ LAGOSlimno <- LAGOSdata$lakes_limno
 # Create a data frame to visualize secchi depth
 LAGOScombined <- 
   left_join(LAGOSnutrient, LAGOSlocus) %>%
-  left_join(., LAGOSlimno) %>%
+  left_join(., LAGOSlimno) %>% #., means what you indicated above as the join
   left_join(., LAGOSstate) %>%
   filter(!is.na(state)) %>%
   select(lagoslakeid, sampledate, secchi, lake_area_ha, maxdepth, nhd_lat, nhd_long, state)
 
+rm(LAGOSlocus)
+rm(LAGOSstate)
+rm(LAGOSnutrient)
+rm(LAGOSlimno)
 ```
 
 Notice that in the absence of specifying specific columns to join by, the `left_join` function will choose columns itself. The resulting data frame has the same amount of rows as the LAGOSnutrient data frame, minus any observations that listed state as NA. Be careful when relying on this functionality! Always double check your final data frame to make sure it contains the correct data and that your joins have proceeded as planned.
@@ -118,12 +127,14 @@ Notice that in the absence of specifying specific columns to join by, the `left_
 Let's create a new data frame of average Secchi depth for each lake. Notice that in the `summarise` function  we also compute the "mean" of max depth, latitude, and longitude for each lake. These should all be the same for every observation at a given lake, so taking the mean just uses that one value.
 
 ```{r}
+
 secchi.summary <- LAGOScombined %>%
+  filter(sampledate > "2011-12-31") %>% #samples within the last 5 years
   group_by(lagoslakeid) %>%
-  summarise(secchi.mean = mean(secchi),
+  summarise(secchi.mean = mean(secchi), #taking the mean depth is an option, we can also look at best or worst conditions across the dataset 
             area = mean(lake_area_ha),
             depth = mean(maxdepth),
-            lat = mean(nhd_lat), 
+            lat = mean(nhd_lat), #we have to do something with them if we want to keep them in the dataframe but they will remain the same because there is only one 
             long = mean(nhd_long)) %>%
   drop_na()
 ```
@@ -140,12 +151,13 @@ secchi.spatial <- st_as_sf(secchi.summary, coords = c("long", "lat"), crs = 4326
 
 ggplot() +
   geom_sf(data = states.subset, fill = "white") +
-  geom_sf(data = secchi.spatial, aes(color = secchi.mean), 
+  geom_sf(data = secchi.spatial, aes(color = secchi.mean), #don't need to specify x and y  
           alpha = 0.5, size = 1) +
-  scale_color_viridis_c(trans = "log10", end = 0.8) +
+  scale_color_viridis_c(trans = "log10", end = 0.8, direction = -1, alpha = 0.5) +
   labs(color = "Average Secchi Depth (m)") +
   theme(legend.position = "top")
 
+#can also be repeated with data on minimum or maximum secchi depth 
 ```
 
 ## Secchi depth mapping challenge. 
@@ -155,24 +167,70 @@ Your turn! Notice that Maine has a large number of lakes with secchi depth measu
 
 ```{r}
 
+states <- st_as_sf(map(database = "state", plot = TRUE, fill = TRUE, col = "white"))
+
+maine.subset <- states.subset %>% 
+  filter(ID == "maine")
+
+LAGOSlocus <- LAGOSdata$locus
+LAGOSstate <- LAGOSdata$state
+LAGOSnutrient <- LAGOSdata$epi_nutr
+LAGOSlimno <- LAGOSdata$lakes_limno
+
+# Create a data frame to visualize secchi depth
+MAINEcombined <- 
+  left_join(LAGOSnutrient, LAGOSlocus) %>%
+  left_join(., LAGOSlimno) %>% #., means what you indicated above as the join
+  left_join(., LAGOSstate) %>%
+  filter(!is.na(maine.subset)) %>%
+  select(lagoslakeid, sampledate, secchi, lake_area_ha, maxdepth, nhd_lat, nhd_long, state)
+
+rm(LAGOSlocus)
+rm(LAGOSstate)
+rm(LAGOSnutrient)
+rm(LAGOSlimno)
+
+maine.secchi.summary <- MAINEcombined %>%
+  filter(state == "ME") %>% 
+  group_by(lagoslakeid) %>%
+  summarise(secchi.mean = mean(secchi), 
+            area = mean(lake_area_ha),
+            depth = mean(maxdepth),
+            lat = mean(nhd_lat), 
+            long = mean(nhd_long)) %>%
+  drop_na()
 ```
 
 2. Create a plot of mean secchi depth for lakes in Maine, with mean secchi depth designated as color and the lake area as the size of the dot. Remember that you are using size in the aesthetics and should remove the size = 1 from the other part of the code. Adjust the transparency of points as needed.
 
 ```{r}
+maine.secchi.spatial <- st_as_sf(maine.secchi.summary, coords = c("long", "lat"), crs = 4326)
 
+plot_a <- ggplot() +
+  geom_sf(data = maine.subset, fill = "white") +
+  geom_sf(data = maine.secchi.spatial, aes(color = secchi.mean), 
+          alpha = 0.5, size = 1) +
+  scale_color_viridis_c(trans = "log10", end = 0.8, direction = -1, alpha = 0.5) +
+  labs(color = "Maine Average Secchi Depth (m)") +
+  theme(legend.position = "top")
 ```
 
 3. Create a second plot, but this time use maximum depth of the lake as the size of the dot. 
 
 ```{r}
-
+plot_b <- ggplot() +
+  geom_sf(data = maine.subset, fill = "white") +
+  geom_sf(data = maine.secchi.spatial, aes(color = secchi.mean), #change point size cex=depth ? 
+          alpha = 0.5, size = 1) +
+  scale_color_viridis_c(trans = "log10", end = 0.8, direction = -1, alpha = 0.5) +
+  labs(color = "Maine Average Secchi Depth (m)") +
+  theme(legend.position = "top")
 ```
 
 4. Plot these maps in the same plot with the `plot_grid` function. Don't worry about adjusting the legends (if you have extra time this would be a good bonus task).
 
 ```{r}
-
+#plot_grid(plot_a, plot_a)
 ```
 
 5. What relationships do you see between secchi depth, lake area, and lake depth? Which of the two lake variables seems to be a stronger determinant of secchi depth? (you can make a scatterplot or run a regression to test this if time remains)
